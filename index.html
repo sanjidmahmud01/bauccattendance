@@ -83,6 +83,7 @@ label{font-size:13px;color:var(--muted)}
           <div><b id="sA">0</b><span>Absent</span></div>
           <div><b id="sT">0</b><span>Total</span></div>
         </div>
+        <button class="full sec" id="endBtn" style="color:var(--bad);border-color:var(--bad)">End meeting (stop attendance)</button>
       </div>
       <div class="card">
         <div id="reader"></div>
@@ -129,7 +130,7 @@ label{font-size:13px;color:var(--muted)}
 
 <script>
 /* ====== SET THIS AFTER DEPLOYING THE APPS SCRIPT ====== */
-const API_URL = "https://script.google.com/macros/s/AKfycbzLlrlLk4qgQs_O2jStnBFG6qwLgQ1ToKD3-8cEaDeazK1jKhiveLhLYxn-DnMruZcUuw/exec";
+const API_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
 /* ====================================================== */
 
 const $ = id => document.getElementById(id);
@@ -196,6 +197,18 @@ function paintList(list){
 async function refresh(){
   try{ const r = await api({action:"state"}); if(r.ok){ paint(r.meeting); paintList(r.meetings); } }catch(e){}
 }
+
+/* ---- end meeting ---- */
+$("endBtn").onclick = async () => {
+  if(!confirm("End this meeting? Scanning will stop. You can reopen it from the Meetings tab.")) return;
+  $("endBtn").disabled = true;
+  try{
+    const r = await api({action:"close"});
+    if(r.ok){ await stopCam(); paint(null); paintList(r.meetings); $("result").className="hidden"; show("already","Meeting ended","Attendance is closed"); }
+    else show("bad", r.error || "Could not end meeting");
+  }catch(e){ show("bad","Network error – try again"); }
+  $("endBtn").disabled = false;
+};
 
 /* ---- create meeting ---- */
 $("createBtn").onclick = async () => {
