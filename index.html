@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BAUCC Attendance</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+:root{--bg:#f5f7fb;--card:#fff;--text:#14213d;--muted:#6b7280;--brand:#1a56db;--ok:#16a34a;--warn:#d97706;--bad:#dc2626;--info:#2563eb;--line:#e5e7eb}
+@media (prefers-color-scheme:dark){:root{--bg:#0f172a;--card:#1e293b;--text:#f1f5f9;--muted:#94a3b8;--brand:#3b82f6;--line:#334155}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+.wrap{max-width:560px;margin:0 auto;padding:16px}
+h1{margin:0;font-size:28px;letter-spacing:2px;text-align:center;color:var(--brand)}
+.sub{text-align:center;color:var(--muted);margin:4px 0 16px;font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+input,button,select{font:inherit}
+input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);margin:6px 0}
+button{padding:12px 16px;border:0;border-radius:10px;background:var(--brand);color:#fff;font-weight:600;cursor:pointer}
+button.sec{background:transparent;color:var(--brand);border:1px solid var(--brand)}
+button.full{width:100%;margin-top:6px}
+.tabs{display:flex;gap:6px;margin-bottom:14px}
+.tabs button{flex:1;background:var(--card);color:var(--text);border:1px solid var(--line);padding:10px 4px;font-size:14px}
+.tabs button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.hidden{display:none!important}
+#reader{width:100%;border-radius:12px;overflow:hidden}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
+.stats div{background:var(--bg);border-radius:10px;padding:10px 4px}
+.stats b{display:block;font-size:22px}.stats span{font-size:12px;color:var(--muted)}
+#result{border-radius:12px;padding:14px;margin:10px 0;color:#fff;font-weight:600;text-align:center}
+#result small{display:block;font-weight:400;opacity:.9;margin-top:2px}
+.m{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
+.m:last-child{border:0}.tag{background:var(--ok);color:#fff;border-radius:6px;padding:2px 8px;font-size:12px}
+.err{color:var(--bad);font-size:14px;min-height:18px}
+label{font-size:13px;color:var(--muted)}
+/* QR cards */
+#cards{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.qc{background:#fff;color:#000;border:1px dashed #888;border-radius:10px;padding:10px;text-align:center;break-inside:avoid}
+.qc img{width:100%;max-width:170px;image-rendering:pixelated}
+.qc b{display:block;font-size:15px}.qc span{font-size:12px;color:#444}
+.qc .org{font-size:11px;letter-spacing:2px;color:#1a56db;font-weight:700}
+@media print{
+  body{background:#fff}.wrap{max-width:none;padding:0}
+  .noprint{display:none!important}
+  #cards{grid-template-columns:repeat(3,1fr);gap:6mm}
+  .qc{border:1px dashed #999;padding:4mm}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>BAUCC</h1>
+  <div class="sub noprint">Meeting Attendance System</div>
+
+  <!-- LOGIN -->
+  <div id="login" class="card noprint">
+    <b>HR Login</b>
+    <input id="pin" type="password" inputmode="numeric" placeholder="Enter HR PIN" autocomplete="off">
+    <button class="full" id="loginBtn">Log in</button>
+    <div class="err" id="loginErr"></div>
+  </div>
+
+  <!-- APP -->
+  <div id="app" class="hidden">
+    <div class="tabs noprint">
+      <button data-t="scan" class="on">Scan</button>
+      <button data-t="meet">Meetings</button>
+      <button data-t="qr">QR Cards</button>
+      <button id="logout">Exit</button>
+    </div>
+
+    <!-- SCAN -->
+    <div id="t-scan" class="noprint">
+      <div class="card">
+        <div id="mTitle" style="font-weight:700">No active meeting</div>
+        <div id="mStart" class="sub" style="text-align:left;margin:2px 0 10px"></div>
+        <div class="stats">
+          <div><b id="sP">0</b><span>Present</span></div>
+          <div><b id="sL">0</b><span>Late</span></div>
+          <div><b id="sA">0</b><span>Absent</span></div>
+          <div><b id="sT">0</b><span>Total</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div id="reader"></div>
+        <button class="full sec" id="camBtn">Start camera</button>
+        <div id="result" class="hidden"></div>
+      </div>
+      <div class="card">
+        <b>Manual check-in</b>
+        <div class="row">
+          <input id="manual" placeholder="e.g. Swapnil.GS" autocapitalize="off" autocomplete="off">
+          <button id="manualBtn" style="flex:0 0 auto;margin:6px 0">Check in</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MEETINGS -->
+    <div id="t-meet" class="hidden noprint">
+      <div class="card">
+        <b>New meeting</b>
+        <label>Title</label><input id="nTitle" placeholder="Weekly meeting">
+        <div class="row">
+          <div><label>Date</label><input id="nDate" type="date"></div>
+          <div><label>Start time</label><input id="nTime" type="time"></div>
+        </div>
+        <button class="full" id="createBtn">Create &amp; make active</button>
+        <div class="err" id="createErr"></div>
+        <div class="sub" style="text-align:left">Anyone arriving more than 10 minutes after the start time is marked Late.</div>
+      </div>
+      <div class="card"><b>All meetings</b><div id="mList"></div></div>
+    </div>
+
+    <!-- QR -->
+    <div id="t-qr" class="hidden">
+      <div class="card noprint">
+        <b>Printable QR cards</b>
+        <div class="sub" style="text-align:left">Loads every member from the Members sheet. Each QR contains only the member’s ID.</div>
+        <div class="row"><button id="loadQr">Load members</button><button class="sec" id="printQr">Print</button></div>
+        <div class="err" id="qrErr"></div>
+      </div>
+      <div id="cards"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ====== SET THIS AFTER DEPLOYING THE APPS SCRIPT ====== */
+const API_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
+/* ====================================================== */
+
+const $ = id => document.getElementById(id);
+let PIN = "", scanner = null, camOn = false, busy = false, lastCode = "", lastAt = 0;
+
+async function api(payload){
+  const r = await fetch(API_URL, {method:"POST", body: JSON.stringify({...payload, pin: PIN})}); // text/plain: no CORS preflight
+  return r.json();
+}
+
+/* ---- login ---- */
+async function doLogin(){
+  $("loginErr").textContent = "";
+  PIN = $("pin").value.trim();
+  if(!PIN) return;
+  $("loginBtn").disabled = true;
+  try{
+    const r = await api({action:"login"});
+    if(!r.ok){ $("loginErr").textContent = r.error || "Login failed"; PIN=""; }
+    else { sessionStorage.setItem("baucc_pin", PIN); showApp(); }
+  }catch(e){ $("loginErr").textContent = "Cannot reach server. Check API_URL / internet."; }
+  $("loginBtn").disabled = false;
+}
+$("loginBtn").onclick = doLogin;
+$("pin").addEventListener("keydown", e => { if(e.key==="Enter") doLogin(); });
+$("logout").onclick = () => { sessionStorage.removeItem("baucc_pin"); stopCam(); location.reload(); };
+
+function showApp(){
+  $("login").classList.add("hidden");
+  $("app").classList.remove("hidden");
+  const d = new Date(), p = n => String(n).padStart(2,"0");
+  $("nDate").value = d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());
+  $("nTime").value = p(d.getHours())+":"+p(d.getMinutes());
+  refresh();
+}
+
+/* ---- tabs ---- */
+document.querySelectorAll(".tabs [data-t]").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".tabs [data-t]").forEach(x => x.classList.toggle("on", x===b));
+  ["scan","meet","qr"].forEach(t => $("t-"+t).classList.toggle("hidden", t!==b.dataset.t));
+  if(b.dataset.t!=="scan") stopCam();
+});
+
+/* ---- state ---- */
+function paint(m){
+  if(!m){ $("mTitle").textContent="No active meeting"; $("mStart").textContent="Create one in the Meetings tab"; ["sP","sL","sA","sT"].forEach(i=>$(i).textContent="0"); return; }
+  $("mTitle").textContent = m.title;
+  $("mStart").textContent = "Starts: " + m.start;
+  $("sP").textContent = m.present; $("sL").textContent = m.late; $("sA").textContent = m.absent; $("sT").textContent = m.total;
+}
+function paintList(list){
+  $("mList").innerHTML = list.length ? "" : "<div class='sub'>No meetings yet</div>";
+  list.forEach(m => {
+    const el = document.createElement("div"); el.className="m";
+    el.innerHTML = "<div><b></b><br><small style='color:var(--muted)'></small></div>";
+    el.querySelector("b").textContent = m.title;
+    el.querySelector("small").textContent = m.start;
+    if(m.active){ const t=document.createElement("span"); t.className="tag"; t.textContent="Active"; el.appendChild(t); }
+    else { const b=document.createElement("button"); b.className="sec"; b.textContent="Use"; b.style.padding="6px 12px";
+           b.onclick = async()=>{ const r=await api({action:"activate", tab:m.tab}); if(r.ok){paint(r.meeting);paintList(r.meetings);} }; el.appendChild(b); }
+    $("mList").appendChild(el);
+  });
+}
+async function refresh(){
+  try{ const r = await api({action:"state"}); if(r.ok){ paint(r.meeting); paintList(r.meetings); } }catch(e){}
+}
+
+/* ---- create meeting ---- */
+$("createBtn").onclick = async () => {
+  $("createErr").textContent = "";
+  $("createBtn").disabled = true;
+  try{
+    const r = await api({action:"create", title:$("nTitle").value, date:$("nDate").value, time:$("nTime").value});
+    if(r.ok){ paint(r.meeting); paintList(r.meetings); $("nTitle").value=""; document.querySelector('[data-t="scan"]').click(); }
+    else $("createErr").textContent = r.error;
+  }catch(e){ $("createErr").textContent = "Network error"; }
+  $("createBtn").disabled = false;
+};
+
+/* ---- check-in ---- */
+function show(kind, title, sub){
+  const c = {ok:"var(--ok)", late:"var(--warn)", already:"var(--info)", bad:"var(--bad)"}[kind];
+  const el = $("result"); el.className=""; el.style.background=c;
+  el.innerHTML = ""; const b=document.createElement("div"); b.textContent=title; el.appendChild(b);
+  if(sub){ const s=document.createElement("small"); s.textContent=sub; el.appendChild(s); }
+}
+async function checkin(uid){
+  uid = (uid||"").trim(); if(!uid || busy) return;
+  busy = true;
+  try{
+    const r = await api({action:"scan", uid});
+    if(!r.ok){ show("bad", r.error); navigator.vibrate && navigator.vibrate([200,100,200]); }
+    else if(r.already){ show("already", r.name+" – already "+r.status, "Checked in at "+r.time); }
+    else { show(r.status==="Late"?"late":"ok", r.name+" – "+r.status, r.uid+" · "+r.time); navigator.vibrate && navigator.vibrate(120); }
+    if(r && r.meeting) paint(r.meeting);
+  }catch(e){ show("bad","Network error – try again"); }
+  setTimeout(()=>{busy=false}, 900);
+}
+$("manualBtn").onclick = () => { checkin($("manual").value); $("manual").value=""; };
+$("manual").addEventListener("keydown", e => { if(e.key==="Enter") $("manualBtn").click(); });
+
+/* ---- camera ---- */
+async function startCam(){
+  if(camOn) return;
+  scanner = new Html5Qrcode("reader");
+  try{
+    await scanner.start({facingMode:"environment"}, {fps:10, qrbox:{width:230,height:230}}, txt => {
+      const now = Date.now();
+      if(txt===lastCode && now-lastAt<4000) return;   // ignore repeat of same code
+      lastCode = txt; lastAt = now; checkin(txt);
+    });
+    camOn = true; $("camBtn").textContent = "Stop camera";
+  }catch(e){ show("bad","Camera blocked – allow camera access, or use manual entry"); }
+}
+async function stopCam(){
+  if(scanner && camOn){ try{ await scanner.stop(); scanner.clear(); }catch(e){} }
+  camOn = false; $("camBtn").textContent = "Start camera";
+}
+$("camBtn").onclick = () => camOn ? stopCam() : startCam();
+
+/* ---- QR cards ---- */
+$("loadQr").onclick = async () => {
+  $("qrErr").textContent = ""; $("cards").innerHTML = "";
+  try{
+    const r = await api({action:"members"});
+    if(!r.ok){ $("qrErr").textContent = r.error; return; }
+    r.members.forEach(m => {
+      const qr = qrcode(0, "M"); qr.addData(m.uid); qr.make();
+      const d = document.createElement("div"); d.className = "qc";
+      d.innerHTML = "<div class='org'>BAUCC</div>" + qr.createImgTag(6,4) + "<b></b><span></span>";
+      d.querySelector("b").textContent = m.name;
+      d.querySelector("span").textContent = m.uid + " · " + m.role;
+      $("cards").appendChild(d);
+    });
+    $("qrErr").textContent = r.members.length + " cards ready";
+  }catch(e){ $("qrErr").textContent = "Network error"; }
+};
+$("printQr").onclick = () => window.print();
+
+/* ---- auto login if same session ---- */
+(function(){
+  const s = sessionStorage.getItem("baucc_pin");
+  if(s && API_URL.startsWith("http")){ PIN = s; api({action:"login"}).then(r => r.ok ? showApp() : (PIN="")).catch(()=>{}); }
+})();
+</script>
+</body>
+</html>
